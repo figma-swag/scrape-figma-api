@@ -1,5 +1,5 @@
 import puppeteer from "puppeteer";
-import { getSiblings } from "./util";
+import { getSiblings, extractTypeFromTable } from "./util";
 
 async function parse(page: puppeteer.Page) {
   const contents = await page.$$("[class*=developer_docs--subsectionHeader");
@@ -14,15 +14,29 @@ async function parse(page: puppeteer.Page) {
    */
   for await (const content of contents) {
     const html: string = await content.evaluate((elem) => elem.innerHTML);
-    if (html.includes("types") || html.includes("Types")) {
+    if (
+      html.includes("types") ||
+      html.includes("Types") ||
+      html.includes("Global properties")
+    ) {
       typeSectionHeadings.push(content);
     }
   }
 
   // let's get all the elements in a heading section. Might be worth breaking
+  const typeTables: puppeteer.ElementHandle[] = [];
   for await (const heading of typeSectionHeadings) {
     const siblings = await getSiblings(page, heading);
-    console.log(siblings.length);
+    // console.log(siblings.length);
+
+    // as far as I can tell, the table is always the last sibling, so we're
+    // going to roll with that for now
+    const table = await siblings[siblings.length - 1].$("table");
+    typeTables.push(table);
+  }
+
+  for await (const table of typeTables) {
+    await extractTypeFromTable(page, table);
   }
 }
 
